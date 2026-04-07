@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Hook script: reads REAL token usage from Claude Code session files
-// and pushes it to PartyKit. Called by the Stop hook after each response.
+// Only counts tokens from today. Pushes to PartyKit.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "fs";
 import { join } from "path";
@@ -17,14 +17,17 @@ try {
   process.exit(0);
 }
 
-// Find the most recently modified session file
-function getLatestSessionFile() {
+// Today at midnight
+const todayStart = new Date();
+todayStart.setHours(0, 0, 0, 0);
+const todayISO = todayStart.toISOString();
+
+// Find all session files modified today
+function getSessionFilesModifiedToday() {
   const projectsDir = join(homedir(), ".claude", "projects");
-  if (!existsSync(projectsDir)) return null;
+  if (!existsSync(projectsDir)) return [];
 
-  let latestFile = null;
-  let latestMtime = 0;
-
+  const files = [];
   try {
     for (const dir of readdirSync(projectsDir)) {
       const dirPath = join(projectsDir, dir);
@@ -33,50 +36,48 @@ function getLatestSessionFile() {
           if (!file.endsWith(".jsonl")) continue;
           const filePath = join(dirPath, file);
           const mtime = statSync(filePath).mtimeMs;
-          if (mtime > latestMtime) {
-            latestMtime = mtime;
-            latestFile = filePath;
+          // Only files modified today
+          if (mtime >= todayStart.getTime()) {
+            files.push(filePath);
           }
         }
       } catch {}
     }
   } catch {}
 
-  return latestFile;
+  return files;
 }
 
-// Sum token usage from session file
-function getTokensFromSession(filePath) {
-  if (!filePath) return 0;
+// Sum today's token usage from session files
+function getTodayTokens(files) {
+  let totalTokens = 0;
 
-  try {
-    const content = readFileSync(filePath, "utf-8");
-    const lines = content.trim().split("\n");
+  for (const filePath of files) {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      for (const line of content.trim().split("\n")) {
+        try {
+          const entry = JSON.parse(line);
+          const usage = entry?.message?.usage;
+          const timestamp = entry?.timestamp;
 
-    let totalTokens = 0;
-    for (const line of lines) {
-      try {
-        const entry = JSON.parse(line);
-        const usage = entry?.message?.usage;
-        if (usage) {
-          // Count input + output + cache writes (real cost)
-          // Exclude cache_read — those are nearly free and inflate the number
-          totalTokens +=
-            (usage.input_tokens || 0) +
-            (usage.cache_creation_input_tokens || 0) +
-            (usage.output_tokens || 0);
-        }
-      } catch {}
-    }
-
-    return totalTokens;
-  } catch {
-    return 0;
+          // Only count entries from today
+          if (usage && timestamp && timestamp >= todayISO) {
+            totalTokens +=
+              (usage.input_tokens || 0) +
+              (usage.cache_creation_input_tokens || 0) +
+              (usage.output_tokens || 0);
+          }
+        } catch {}
+      }
+    } catch {}
   }
+
+  return totalTokens;
 }
 
-const sessionFile = getLatestSessionFile();
-const totalTokens = getTokensFromSession(sessionFile);
+const files = getSessionFilesModifiedToday();
+const totalTokens = getTodayTokens(files);
 
 if (totalTokens === 0) process.exit(0);
 
