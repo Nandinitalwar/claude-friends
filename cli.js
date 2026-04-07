@@ -165,7 +165,11 @@ Token usage is shared automatically.
     const lines = sorted.map((f) => {
       const dot = f.online ? "🟢" : "⚫";
       const status = f.status && f.status !== "offline" && f.status !== "unknown" ? ` — ${f.status}` : "";
-      const tokens = f.tokensUsed ? ` [${(f.tokensUsed / 1000).toFixed(1)}K tokens]` : "";
+      const tokens = f.tokensUsed
+        ? f.tokensUsed >= 1_000_000
+          ? ` [${(f.tokensUsed / 1_000_000).toFixed(1)}M tokens]`
+          : ` [${(f.tokensUsed / 1000).toFixed(1)}K tokens]`
+        : "";
       return `${dot} ${f.name}${status}${tokens}`;
     });
 
