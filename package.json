@@ -1,10 +1,10 @@
 {
   "name": "claude-friends",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "See who's online in Claude Code. Add friends, share status, nudge each other.",
   "type": "module",
   "bin": {
-    "claude-friends": "./cli.js"
+    "claude-friends": "cli.js"
   },
   "main": "mcp-server.js",
   "scripts": {
@@ -25,10 +25,17 @@
   "devDependencies": {
     "partykit": "^0.0.111"
   },
-  "keywords": ["claude", "claude-code", "mcp", "social", "presence", "friends"],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "social",
+    "presence",
+    "friends"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nandinitalwar/claude-friends"
+    "url": "git+https://github.com/nandinitalwar/claude-friends.git"
   }
 }
