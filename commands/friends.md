@@ -1,1 +1,1 @@
-Use the friends-online MCP tool to show who's currently online.
+Run `claude-friends online` and show the output.

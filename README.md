@@ -11,55 +11,47 @@ See who's online in Claude Code. Add friends, share what you're working on, nudg
 ```bash
 npm install -g claude-friends
 claude-friends setup
-claude mcp add claude-friends -- claude-friends serve
 ```
 
-That's it. No database, no API keys.
+That's it. No database, no API keys, no MCP server to configure.
 
-## What you get
+## Usage
 
-A status line in Claude Code showing online friends, plus these tools:
+### Slash commands (inside Claude Code)
 
-| Command | What it does |
-|---|---|
-| "who's online?" | See friends with 🟢/⚫ indicators |
-| "add friend alice" | Add someone by username |
-| "set my status to debugging auth" | Share what you're working on |
-| "nudge bob" | Poke a friend with a message |
-| "share my token usage: 45000" | Let friends see your token count |
-| "check nudges" | See if anyone poked you |
-
-## Status line
-
-Add to your Claude Code settings (`~/.claude/settings.json`):
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "node /path/to/claude-friends/statusline.js"
-  }
-}
+```
+/friend alice       Add a friend
+/friends            See who's online
+/nudge bob hey!     Nudge someone
+/status debugging   Set your status
+/unfriend alice     Remove a friend
 ```
 
-Or after global install:
+### CLI (from any terminal)
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "claude-friends statusline"
-  }
-}
+```bash
+claude-friends add alice
+claude-friends online
+claude-friends nudge bob "ship it!"
+claude-friends status "pair programming"
+claude-friends remove alice
 ```
+
+## Features
+
+- **Online presence** — see who's in Claude Code right now
+- **Status messages** — share what you're working on
+- **Nudges** — poke a friend with a message
+- **Token usage** — automatically shared with friends (opt-in via hook)
+- **Status line** — friend count shown in Claude Code's bottom bar
 
 ## How it works
 
 - **PartyKit** handles real-time presence via WebSockets
-- When you open Claude Code → you go online
-- When you close it → PartyKit detects the disconnect → you go offline
-- Friend lists and nudges are stored in-memory on the server
+- When you use Claude Code → you appear online
+- Friend lists and nudges are stored on the server
 - No accounts, no passwords — just a username
+- Setup auto-installs slash commands, status line, and token-sharing hook
 
 ## Self-hosting
 

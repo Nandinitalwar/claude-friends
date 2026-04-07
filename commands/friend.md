@@ -1,1 +1,1 @@
-Use the add-friend MCP tool to add "$ARGUMENTS" as a friend. If no username is provided, ask for one.
+Run `claude-friends add $ARGUMENTS` and show the output. If no username is provided, ask for one first.

@@ -4,7 +4,7 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync, copyFileSync, readd
 import { join } from "path";
 import { homedir } from "os";
 import { createInterface } from "readline";
-import { getConfig } from "./client.js";
+import { getConfig, createConnection } from "./client.js";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
@@ -12,6 +12,37 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = join(homedir(), ".claude-friends.json");
 
 const command = process.argv[2];
+const args = process.argv.slice(3).join(" ").trim();
+
+// Helper: connect, send a message, wait for response, print, exit
+function run(messageType, payload, responseType, formatter) {
+  const config = getConfig();
+  if (!config) {
+    console.log("Not set up. Run: claude-friends setup");
+    process.exit(1);
+  }
+
+  const ws = createConnection(config.username);
+
+  ws.addEventListener("open", () => {
+    ws.send(JSON.stringify({ type: messageType, ...payload }));
+  });
+
+  ws.addEventListener("message", (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === responseType || msg.type === "error") {
+      if (msg.type === "error") {
+        console.log("Error:", msg.message);
+      } else {
+        console.log(formatter(msg));
+      }
+      ws.close();
+      process.exit(0);
+    }
+  });
+
+  setTimeout(() => { console.log("Timeout connecting to server."); process.exit(1); }, 5000);
+}
 
 if (command === "setup") {
   const existing = getConfig();
@@ -64,7 +95,6 @@ if (command === "setup") {
     if (!settings.hooks) settings.hooks = {};
     if (!settings.hooks.Stop) settings.hooks.Stop = [];
 
-    // Check if hook already installed
     const alreadyInstalled = settings.hooks.Stop.some((h) =>
       h.hooks?.some((hk) => hk.command?.includes("update-tokens"))
     );
@@ -84,45 +114,112 @@ if (command === "setup") {
     console.log("Could not install token hook (non-critical):", err.message);
   }
 
+  // Install statusline
+  try {
+    const settingsPath2 = join(homedir(), ".claude", "settings.json");
+    let settings = {};
+    if (existsSync(settingsPath2)) {
+      settings = JSON.parse(readFileSync(settingsPath2, "utf-8"));
+    }
+    if (!settings.statusLine) {
+      settings.statusLine = {
+        type: "command",
+        command: `node ${join(__dirname, "statusline.js")}`,
+      };
+      writeFileSync(settingsPath2, JSON.stringify(settings, null, 2));
+      console.log("Installed status line.");
+    }
+  } catch {}
+
   console.log(`
 Done! You're "${username.trim()}".
 
-Now add the MCP server to Claude Code:
-
-  claude mcp add claude-friends -- claude-friends serve
-
-Then in Claude Code:
+In Claude Code:
   /friend alice       Add a friend
   /friends            See who's online
-  /nudge bob          Nudge someone
+  /nudge bob hey!     Nudge someone
   /status debugging   Set your status
   /unfriend alice     Remove a friend
 
-Token usage is shared automatically with friends.
+Token usage is shared automatically.
 `);
 
   rl.close();
-} else if (command === "serve") {
-  // Start the MCP server directly
-  await import("./mcp-server.js");
+
+} else if (command === "add") {
+  if (!args) { console.log("Usage: claude-friends add <username>"); process.exit(1); }
+  run("add-friend", { friend: args }, "friend-added", () => `Added ${args} as a friend!`);
+
+} else if (command === "remove") {
+  if (!args) { console.log("Usage: claude-friends remove <username>"); process.exit(1); }
+  run("remove-friend", { friend: args }, "friend-removed", () => `Removed ${args}.`);
+
+} else if (command === "online" || command === "list") {
+  run("get-friends", {}, "friends-list", (msg) => {
+    const friends = msg.friends || [];
+    if (friends.length === 0) return "No friends yet. Run: claude-friends add <username>";
+
+    const sorted = [...friends].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
+    const onlineCount = sorted.filter((f) => f.online).length;
+
+    const lines = sorted.map((f) => {
+      const dot = f.online ? "🟢" : "⚫";
+      const status = f.status && f.status !== "offline" && f.status !== "unknown" ? ` — ${f.status}` : "";
+      const tokens = f.tokensUsed ? ` [${(f.tokensUsed / 1000).toFixed(1)}K tokens]` : "";
+      return `${dot} ${f.name}${status}${tokens}`;
+    });
+
+    return `Friends (${onlineCount}/${friends.length} online):\n${lines.join("\n")}`;
+  });
+
+} else if (command === "status") {
+  if (!args) { console.log("Usage: claude-friends status <message>"); process.exit(1); }
+  const config = getConfig();
+  if (!config) { console.log("Not set up. Run: claude-friends setup"); process.exit(1); }
+  const ws = createConnection(config.username);
+  ws.addEventListener("open", () => {
+    ws.send(JSON.stringify({ type: "set-status", status: args }));
+    console.log(`Status set: "${args}"`);
+    setTimeout(() => { ws.close(); process.exit(0); }, 500);
+  });
+  setTimeout(() => process.exit(1), 5000);
+
+} else if (command === "nudge") {
+  const parts = args.split(" ");
+  const friend = parts[0];
+  const message = parts.slice(1).join(" ") || undefined;
+  if (!friend) { console.log("Usage: claude-friends nudge <username> [message]"); process.exit(1); }
+  run("nudge", { friend, message }, "nudge-sent", () => `Nudge sent to ${friend}!`);
+
 } else if (command === "whoami") {
   const config = getConfig();
-  if (!config) {
-    console.log("Not set up yet. Run: claude-friends setup");
-  } else {
-    console.log(config.username);
-  }
+  if (!config) { console.log("Not set up. Run: claude-friends setup"); process.exit(1); }
+  console.log(config.username);
+
+} else if (command === "serve") {
+  // Keep for backwards compat with anyone who set up MCP
+  await import("./mcp-server.js");
+
 } else {
   console.log(`
 claude-friends — social presence for Claude Code
 
 Commands:
-  setup     Pick a username (one-time)
-  serve     Start the MCP server (used by Claude Code)
-  whoami    Show your username
+  setup               Pick a username (one-time)
+  add <username>      Add a friend
+  remove <username>   Remove a friend
+  online              See who's online
+  status <message>    Set your status
+  nudge <user> [msg]  Nudge a friend
+  whoami              Show your username
 
 Quick start:
   claude-friends setup
-  claude mcp add claude-friends -- claude-friends serve
+  claude-friends add alice
+
+In Claude Code:
+  /friend alice
+  /friends
+  /nudge bob hey!
 `);
 }

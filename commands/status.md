@@ -1,1 +1,1 @@
-Use the set-status MCP tool to set your status to "$ARGUMENTS". If no status is provided, ask what to set it to.
+Run `claude-friends status $ARGUMENTS` and show the output. If no status message is provided, ask for one first.

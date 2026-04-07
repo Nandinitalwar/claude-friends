@@ -1,1 +1,1 @@
-Use the remove-friend MCP tool to remove "$ARGUMENTS" from your friends list. If no username is provided, ask for one.
+Run `claude-friends remove $ARGUMENTS` and show the output. If no username is provided, ask for one first.
