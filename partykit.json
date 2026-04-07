@@ -1,4 +1,4 @@
 {
-  "name": "claude-friends",
+  "name": "claude-friends-app",
   "main": "party/server.js"
 }

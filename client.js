@@ -8,7 +8,7 @@ import { homedir } from "os";
 const CONFIG_PATH = join(homedir(), ".claude-friends.json");
 
 // TODO: replace with your deployed PartyKit URL after `npx partykit deploy`
-const PARTY_HOST = "claude-friends.nandinitalwar.partykit.dev";
+const PARTY_HOST = "claude-friends-app.nandinitalwar.partykit.dev";
 
 export function getConfig() {
   if (!existsSync(CONFIG_PATH)) return null;
