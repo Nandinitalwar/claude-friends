@@ -1,0 +1,1 @@
+Use the set-status MCP tool to set your status to "$ARGUMENTS". If no status is provided, ask what to set it to.

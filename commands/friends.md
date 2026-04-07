@@ -1,0 +1,1 @@
+Use the friends-online MCP tool to show who's currently online.

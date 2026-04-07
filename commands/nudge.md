@@ -1,0 +1,1 @@
+Use the nudge MCP tool to nudge "$ARGUMENTS". If the input includes a message after the username, pass it as the message parameter. If no username is provided, ask for one.

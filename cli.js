@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { writeFileSync, existsSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createInterface } from "readline";
@@ -40,18 +40,32 @@ if (command === "setup") {
 
   writeFileSync(CONFIG_PATH, JSON.stringify({ username: username.trim() }, null, 2));
 
+  // Install slash commands to ~/.claude/commands/
+  const commandsDir = join(homedir(), ".claude", "commands");
+  mkdirSync(commandsDir, { recursive: true });
+
+  const srcCommands = join(__dirname, "commands");
+  if (existsSync(srcCommands)) {
+    const files = readdirSync(srcCommands).filter((f) => f.endsWith(".md"));
+    for (const file of files) {
+      copyFileSync(join(srcCommands, file), join(commandsDir, file));
+    }
+    console.log(`\nInstalled slash commands: ${files.map((f) => "/" + f.replace(".md", "")).join(", ")}`);
+  }
+
   console.log(`
 Done! You're "${username.trim()}".
 
 Now add the MCP server to Claude Code:
 
-  claude mcp add claude-friends -- node ${join(__dirname, "mcp-server.js")}
+  claude mcp add claude-friends -- claude-friends serve
 
-Then in Claude Code, try:
-  "who's online?"
-  "add friend alice"
-  "set my status to debugging auth"
-  "nudge bob"
+Then in Claude Code:
+  /friend alice       Add a friend
+  /friends            See who's online
+  /nudge bob          Nudge someone
+  /status debugging   Set your status
+  /unfriend alice     Remove a friend
 `);
 
   rl.close();
