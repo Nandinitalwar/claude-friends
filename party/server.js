@@ -4,8 +4,12 @@
 export default class FriendsServer {
   constructor(room) {
     this.room = room;
-    // { username: { online, status, tokensUsed, lastSeen, connectionId } }
+    // { username: { online, status, tokensUsed, lastSeen } }
     this.users = {};
+    // { username: Set of connection IDs }
+    this.connections = {};
+    // { username: timeout ID for offline grace period }
+    this.offlineTimers = {};
     // { username: [friendUsername, ...] }
     this.friends = {};
     // { username: [{ from, message, timestamp }, ...] }
@@ -15,30 +19,33 @@ export default class FriendsServer {
   onConnect(conn, ctx) {
     const url = new URL(ctx.request.url);
     const username = url.searchParams.get("username");
-    const isQuery = url.searchParams.get("query") === "true";
     if (!username) {
       conn.close(4000, "username required");
       return;
     }
 
     conn._username = username;
-    conn._isQuery = isQuery;
 
-    // Track all connections per user
-    if (!this.connections) this.connections = {};
+    // Cancel any pending offline timer
+    if (this.offlineTimers[username]) {
+      clearTimeout(this.offlineTimers[username]);
+      delete this.offlineTimers[username];
+    }
+
+    // Track connection
     if (!this.connections[username]) this.connections[username] = new Set();
     this.connections[username].add(conn.id);
 
-    // Preserve existing status/tokens if already online
+    // Preserve existing status/tokens if already known
     const existing = this.users[username];
     this.users[username] = {
       online: true,
       status: existing?.status || "coding",
-      tokensUsed: existing?.tokensUsed || null,
+      tokensUsed: existing?.tokensUsed ?? null,
       lastSeen: Date.now(),
     };
 
-    // Send current state to the new connection
+    // Send current state
     conn.send(JSON.stringify({
       type: "state",
       users: this.users,
@@ -46,12 +53,10 @@ export default class FriendsServer {
       nudges: this.nudges[username] || [],
     }));
 
-    // Clear nudges after sending
     if (this.nudges[username]) {
       this.nudges[username] = [];
     }
 
-    // Broadcast presence update
     this.broadcast({
       type: "presence",
       username,
@@ -61,23 +66,38 @@ export default class FriendsServer {
 
   onClose(conn) {
     const username = conn._username;
-    if (!username || !this.users[username]) return;
+    if (!username) return;
 
-    // Remove this connection from tracking
-    if (this.connections?.[username]) {
+    // Remove this connection
+    if (this.connections[username]) {
       this.connections[username].delete(conn.id);
+    }
 
-      // Only mark offline if NO connections remain
-      if (this.connections[username].size === 0) {
-        this.users[username].online = false;
-        this.users[username].lastSeen = Date.now();
-
-        this.broadcast({
-          type: "presence",
-          username,
-          data: this.users[username],
-        });
+    // If no connections left, start a grace period before marking offline
+    // This prevents short-lived CLI/statusline connections from toggling presence
+    if (!this.connections[username] || this.connections[username].size === 0) {
+      // Cancel any existing timer
+      if (this.offlineTimers[username]) {
+        clearTimeout(this.offlineTimers[username]);
       }
+
+      // Wait 10 seconds before marking offline
+      this.offlineTimers[username] = setTimeout(() => {
+        // Double-check no new connections appeared
+        if (!this.connections[username] || this.connections[username].size === 0) {
+          if (this.users[username]) {
+            this.users[username].online = false;
+            this.users[username].lastSeen = Date.now();
+
+            this.broadcast({
+              type: "presence",
+              username,
+              data: this.users[username],
+            });
+          }
+        }
+        delete this.offlineTimers[username];
+      }, 10000);
     }
   }
 
@@ -109,6 +129,7 @@ export default class FriendsServer {
       case "share-tokens": {
         if (this.users[username]) {
           this.users[username].tokensUsed = msg.tokens;
+          this.users[username].lastSeen = Date.now();
           this.broadcast({
             type: "presence",
             username,
@@ -137,7 +158,6 @@ export default class FriendsServer {
           break;
         }
 
-        // Add bidirectional — no need for friend to be online
         if (!this.friends[username]) this.friends[username] = [];
         if (!this.friends[friend]) this.friends[friend] = [];
 
@@ -148,12 +168,10 @@ export default class FriendsServer {
           this.friends[friend].push(username);
         }
 
-        // Initialize friend's user record if they haven't connected yet
         if (!this.users[friend]) {
           this.users[friend] = { online: false, status: "offline", tokensUsed: null, lastSeen: null };
         }
 
-        // Notify both
         conn.send(JSON.stringify({ type: "friend-added", friend }));
         this.sendToUser(friend, { type: "friend-added", friend: username });
         break;
@@ -182,14 +200,12 @@ export default class FriendsServer {
 
         const nudge = {
           from: username,
-          message: msg.message || "👋 Hey! What are you working on?",
+          message: msg.message || "Hey! What are you working on?",
           timestamp: Date.now(),
         };
 
-        // If they're online, send directly
         const sent = this.sendToUser(nudgeTarget, { type: "nudge", ...nudge });
         if (!sent) {
-          // Store for later
           if (!this.nudges[nudgeTarget]) this.nudges[nudgeTarget] = [];
           this.nudges[nudgeTarget].push(nudge);
         }
@@ -202,7 +218,7 @@ export default class FriendsServer {
         const myFriendList = this.friends[username] || [];
         const friendsData = myFriendList.map((f) => ({
           name: f,
-          ...(this.users[f] || { online: false, status: "unknown", lastSeen: null }),
+          ...(this.users[f] || { online: false, status: "unknown", tokensUsed: null, lastSeen: null }),
         }));
         conn.send(JSON.stringify({ type: "friends-list", friends: friendsData }));
         break;
