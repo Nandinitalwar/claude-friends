@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { writeFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createInterface } from "readline";
@@ -53,6 +53,37 @@ if (command === "setup") {
     console.log(`\nInstalled slash commands: ${files.map((f) => "/" + f.replace(".md", "")).join(", ")}`);
   }
 
+  // Install token-sharing hook to ~/.claude/settings.json
+  const settingsPath = join(homedir(), ".claude", "settings.json");
+  const hookCommand = `node ${join(__dirname, "hooks", "update-tokens.js")}`;
+  try {
+    let settings = {};
+    if (existsSync(settingsPath)) {
+      settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    }
+    if (!settings.hooks) settings.hooks = {};
+    if (!settings.hooks.Stop) settings.hooks.Stop = [];
+
+    // Check if hook already installed
+    const alreadyInstalled = settings.hooks.Stop.some((h) =>
+      h.hooks?.some((hk) => hk.command?.includes("update-tokens"))
+    );
+
+    if (!alreadyInstalled) {
+      settings.hooks.Stop.push({
+        hooks: [{
+          type: "command",
+          command: hookCommand,
+          async: true,
+        }],
+      });
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+      console.log("Installed auto token-sharing hook.");
+    }
+  } catch (err) {
+    console.log("Could not install token hook (non-critical):", err.message);
+  }
+
   console.log(`
 Done! You're "${username.trim()}".
 
@@ -66,6 +97,8 @@ Then in Claude Code:
   /nudge bob          Nudge someone
   /status debugging   Set your status
   /unfriend alice     Remove a friend
+
+Token usage is shared automatically with friends.
 `);
 
   rl.close();

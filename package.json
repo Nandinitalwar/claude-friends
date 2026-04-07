@@ -1,6 +1,6 @@
 {
   "name": "claude-friends",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "See who's online in Claude Code. Add friends, share status, nudge each other.",
   "type": "module",
   "bin": {
@@ -16,7 +16,8 @@
     "mcp-server.js",
     "statusline.js",
     "client.js",
-    "commands/"
+    "commands/",
+    "hooks/"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
