@@ -136,12 +136,8 @@ export default class FriendsServer {
           conn.send(JSON.stringify({ type: "error", message: "Can't add yourself!" }));
           break;
         }
-        if (!this.users[friend]) {
-          conn.send(JSON.stringify({ type: "error", message: `User "${friend}" hasn't joined yet.` }));
-          break;
-        }
 
-        // Add bidirectional
+        // Add bidirectional — no need for friend to be online
         if (!this.friends[username]) this.friends[username] = [];
         if (!this.friends[friend]) this.friends[friend] = [];
 
@@ -150,6 +146,11 @@ export default class FriendsServer {
         }
         if (!this.friends[friend].includes(username)) {
           this.friends[friend].push(username);
+        }
+
+        // Initialize friend's user record if they haven't connected yet
+        if (!this.users[friend]) {
+          this.users[friend] = { online: false, status: "offline", tokensUsed: null, lastSeen: null };
         }
 
         // Notify both

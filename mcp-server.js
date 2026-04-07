@@ -13,14 +13,25 @@ const username = config.username;
 
 // Persistent WebSocket connection — stays open while Claude Code is running
 const ws = createConnection(username);
+let connected = false;
 
 // Local cache of state, updated via WebSocket messages
 let friendsList = [];
 let pendingNudges = [];
 let lastError = null;
 
+// Wait for connection to be ready
+function waitForConnection(timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    if (connected && ws.readyState === 1) return resolve();
+    const timer = setTimeout(() => reject(new Error("connection timeout")), timeout);
+    ws.addEventListener("open", () => { connected = true; clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+
 // Promise-based request/response helper
-function request(msg, responseType, timeout = 5000) {
+async function request(msg, responseType, timeout = 5000) {
+  await waitForConnection();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("timeout")), timeout);
     const handler = (event) => {
@@ -138,6 +149,7 @@ server.tool(
   "Set your status so friends can see what you're working on.",
   { status: z.string().describe("Your status, e.g. 'debugging auth flow'") },
   async ({ status }) => {
+    await waitForConnection();
     ws.send(JSON.stringify({ type: "set-status", status }));
     return { content: [{ type: "text", text: `Status set: "${status}"` }] };
   }
@@ -148,6 +160,7 @@ server.tool(
   "Share your token usage with friends.",
   { tokens: z.number().describe("Tokens used this session") },
   async ({ tokens }) => {
+    await waitForConnection();
     ws.send(JSON.stringify({ type: "share-tokens", tokens }));
     return { content: [{ type: "text", text: `Sharing: ${tokens.toLocaleString()} tokens` }] };
   }
@@ -158,6 +171,7 @@ server.tool(
   "Stop sharing token usage.",
   {},
   async () => {
+    await waitForConnection();
     ws.send(JSON.stringify({ type: "hide-tokens" }));
     return { content: [{ type: "text", text: "Token usage hidden." }] };
   }

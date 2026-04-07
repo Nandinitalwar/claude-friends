@@ -1,6 +1,6 @@
 {
   "name": "claude-friends",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "See who's online in Claude Code. Add friends, share status, nudge each other.",
   "type": "module",
   "bin": {
