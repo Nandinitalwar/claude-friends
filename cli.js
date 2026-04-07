@@ -114,21 +114,42 @@ if (command === "setup") {
     console.log("Could not install token hook (non-critical):", err.message);
   }
 
-  // Install statusline
+  // Install statusline + daemon hooks (read settings once)
   try {
     const settingsPath2 = join(homedir(), ".claude", "settings.json");
     let settings = {};
     if (existsSync(settingsPath2)) {
       settings = JSON.parse(readFileSync(settingsPath2, "utf-8"));
     }
+
     if (!settings.statusLine) {
       settings.statusLine = {
         type: "command",
         command: `node ${join(__dirname, "statusline.js")}`,
       };
-      writeFileSync(settingsPath2, JSON.stringify(settings, null, 2));
       console.log("Installed status line.");
     }
+
+    // SessionStart hook: spawn daemon to keep user online
+    if (!settings.hooks) settings.hooks = {};
+    const daemonCmd = `node ${join(__dirname, "daemon.js")}`;
+
+    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+    const daemonInstalled = settings.hooks.SessionStart.some((h) =>
+      h.hooks?.some((hk) => hk.command?.includes("daemon.js"))
+    );
+    if (!daemonInstalled) {
+      settings.hooks.SessionStart.push({
+        hooks: [{
+          type: "command",
+          command: daemonCmd,
+          async: true,
+        }],
+      });
+      console.log("Installed presence daemon (keeps you online).");
+    }
+
+    writeFileSync(settingsPath2, JSON.stringify(settings, null, 2));
   } catch {}
 
   console.log(`
