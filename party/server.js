@@ -15,20 +15,27 @@ export default class FriendsServer {
   onConnect(conn, ctx) {
     const url = new URL(ctx.request.url);
     const username = url.searchParams.get("username");
+    const isQuery = url.searchParams.get("query") === "true";
     if (!username) {
       conn.close(4000, "username required");
       return;
     }
 
     conn._username = username;
+    conn._isQuery = isQuery;
 
-    // Mark online
+    // Track all connections per user
+    if (!this.connections) this.connections = {};
+    if (!this.connections[username]) this.connections[username] = new Set();
+    this.connections[username].add(conn.id);
+
+    // Preserve existing status/tokens if already online
+    const existing = this.users[username];
     this.users[username] = {
       online: true,
-      status: "coding",
-      tokensUsed: null,
+      status: existing?.status || "coding",
+      tokensUsed: existing?.tokensUsed || null,
       lastSeen: Date.now(),
-      connectionId: conn.id,
     };
 
     // Send current state to the new connection
@@ -56,16 +63,21 @@ export default class FriendsServer {
     const username = conn._username;
     if (!username || !this.users[username]) return;
 
-    // Only mark offline if this is the current connection
-    if (this.users[username].connectionId === conn.id) {
-      this.users[username].online = false;
-      this.users[username].lastSeen = Date.now();
+    // Remove this connection from tracking
+    if (this.connections?.[username]) {
+      this.connections[username].delete(conn.id);
 
-      this.broadcast({
-        type: "presence",
-        username,
-        data: this.users[username],
-      });
+      // Only mark offline if NO connections remain
+      if (this.connections[username].size === 0) {
+        this.users[username].online = false;
+        this.users[username].lastSeen = Date.now();
+
+        this.broadcast({
+          type: "presence",
+          username,
+          data: this.users[username],
+        });
+      }
     }
   }
 
