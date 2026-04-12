@@ -58,7 +58,19 @@ if (totalIn != null || totalOut != null) {
   segments.push(`${formatNum(total)} tokens`);
 }
 
-// 5. Cost
+// 5. Tool calls (grep count only — never reads conversation content)
+if (data.transcript_path) {
+  try {
+    const count = execSync(
+      `grep -c 'tool_use' "${data.transcript_path}" 2>/dev/null || echo 0`,
+      { stdio: ["pipe", "pipe", "pipe"] }
+    ).toString().trim();
+    const n = parseInt(count, 10);
+    if (n > 0) segments.push(`\u{1F527} ${n}`);
+  } catch {}
+}
+
+// 6. Cost
 if (data.cost?.total_cost_usd != null) {
   segments.push(`$${data.cost.total_cost_usd.toFixed(2)}`);
 }
