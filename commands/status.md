@@ -1,1 +1,0 @@
-Run `claude-friends status $ARGUMENTS` and show the output. If no status message is provided, ask for one first.

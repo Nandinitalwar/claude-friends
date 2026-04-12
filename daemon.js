@@ -2,22 +2,55 @@
 
 // Background daemon that keeps you online in claude-friends.
 // Runs as a persistent WebSocket connection.
-// Started automatically by the SessionStart hook.
+// Also periodically writes friend status to a cache file
+// so the statusline can read it synchronously.
 
+import { writeFileSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 import { getConfig, createConnection } from "./client.js";
 
 const config = getConfig();
 if (!config) process.exit(0);
 
+const CACHE_PATH = join(homedir(), ".claude-friends-online.json");
 const ws = createConnection(config.username);
 
+function updateCache(friends) {
+  const onlineNames = friends.filter((f) => f.online).map((f) => f.name);
+  try {
+    writeFileSync(CACHE_PATH, JSON.stringify({
+      onlineCount: onlineNames.length,
+      onlineNames,
+      lastUpdate: Date.now(),
+    }));
+  } catch {}
+}
+
 ws.addEventListener("open", () => {
-  // Silently connected — we're online
+  // Request friends list immediately and periodically
+  ws.send(JSON.stringify({ type: "get-friends" }));
 });
 
-ws.addEventListener("close", () => {
-  // Reconnect after a delay (partysocket handles this automatically)
+ws.addEventListener("message", (event) => {
+  try {
+    const msg = JSON.parse(event.data);
+    if (msg.type === "friends-list") {
+      updateCache(msg.friends || []);
+    }
+    // Also update on presence changes
+    if (msg.type === "presence" || msg.type === "state") {
+      ws.send(JSON.stringify({ type: "get-friends" }));
+    }
+  } catch {}
 });
+
+// Poll friends every 15 seconds
+setInterval(() => {
+  if (ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: "get-friends" }));
+  }
+}, 15000);
 
 // Keep process alive
 setInterval(() => {}, 60000);

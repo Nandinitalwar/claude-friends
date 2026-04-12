@@ -1,6 +1,6 @@
 {
   "name": "claude-friends",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "See who's online in Claude Code. Add friends, share status, nudge each other.",
   "type": "module",
   "bin": {
@@ -9,7 +9,8 @@
   "main": "mcp-server.js",
   "scripts": {
     "dev": "npx partykit dev",
-    "deploy": "npx partykit deploy"
+    "deploy": "npx partykit deploy",
+    "postinstall": "claude-friends setup"
   },
   "files": [
     "cli.js",
@@ -22,7 +23,9 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "ccstatusline": "^2.2.7",
     "partysocket": "^1.0.3",
+    "prompts": "^2.4.2",
     "zod": "^3.24.4"
   },
   "devDependencies": {

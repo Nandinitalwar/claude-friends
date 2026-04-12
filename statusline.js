@@ -11,7 +11,7 @@ if (!config) {
 try {
   const friends = await queryFriends(config.username, 3000);
   const online = friends.filter((f) => f.online);
-  const dot = online.length > 0 ? "●" : "○";
+  const dot = online.length > 0 ? "🟢" : "⚫";
   const names = online.slice(0, 3).map((f) => f.name).join(", ");
   const suffix = online.length > 3 ? "…" : "";
   const nameStr = names ? ` (${names}${suffix})` : "";

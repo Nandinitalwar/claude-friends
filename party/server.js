@@ -14,9 +14,27 @@ export default class FriendsServer {
     this.friends = {};
     // { username: [{ from, message, timestamp }, ...] }
     this.nudges = {};
+    // Set of registered usernames
+    this.registeredUsers = new Set();
+    this._loaded = false;
   }
 
-  onConnect(conn, ctx) {
+  async _loadStorage() {
+    if (this._loaded) return;
+    this._loaded = true;
+    const stored = await this.room.storage.get("friends");
+    if (stored) this.friends = stored;
+    const users = await this.room.storage.get("registeredUsers");
+    if (users) this.registeredUsers = new Set(users);
+  }
+
+  async _saveStorage() {
+    await this.room.storage.put("friends", this.friends);
+    await this.room.storage.put("registeredUsers", [...this.registeredUsers]);
+  }
+
+  async onConnect(conn, ctx) {
+    await this._loadStorage();
     const url = new URL(ctx.request.url);
     const username = url.searchParams.get("username");
     if (!username) {
@@ -101,7 +119,8 @@ export default class FriendsServer {
     }
   }
 
-  onMessage(message, conn) {
+  async onMessage(message, conn) {
+    await this._loadStorage();
     const username = conn._username;
     if (!username) return;
 
@@ -157,23 +176,29 @@ export default class FriendsServer {
           conn.send(JSON.stringify({ type: "error", message: "Can't add yourself!" }));
           break;
         }
+        if (!this.registeredUsers.has(friend)) {
+          conn.send(JSON.stringify({ type: "error", message: `User "${friend}" not found. They need to run 'claude-friends setup' first.` }));
+          break;
+        }
 
         if (!this.friends[username]) this.friends[username] = [];
-        if (!this.friends[friend]) this.friends[friend] = [];
 
         if (!this.friends[username].includes(friend)) {
           this.friends[username].push(friend);
-        }
-        if (!this.friends[friend].includes(username)) {
-          this.friends[friend].push(username);
         }
 
         if (!this.users[friend]) {
           this.users[friend] = { online: false, status: "offline", tokensUsed: null, lastSeen: null };
         }
 
-        conn.send(JSON.stringify({ type: "friend-added", friend }));
-        this.sendToUser(friend, { type: "friend-added", friend: username });
+        // Check if the friendship is mutual
+        const mutual = (this.friends[friend] || []).includes(username);
+
+        await this._saveStorage();
+        conn.send(JSON.stringify({ type: "friend-added", friend, mutual }));
+        if (mutual) {
+          this.sendToUser(friend, { type: "friend-mutual", friend: username });
+        }
         break;
       }
 
@@ -182,11 +207,8 @@ export default class FriendsServer {
         if (this.friends[username]) {
           this.friends[username] = this.friends[username].filter((f) => f !== target);
         }
-        if (this.friends[target]) {
-          this.friends[target] = this.friends[target].filter((f) => f !== username);
-        }
+        await this._saveStorage();
         conn.send(JSON.stringify({ type: "friend-removed", friend: target }));
-        this.sendToUser(target, { type: "friend-removed", friend: username });
         break;
       }
 
@@ -214,13 +236,46 @@ export default class FriendsServer {
         break;
       }
 
+      case "check-username": {
+        const available = !this.registeredUsers.has(msg.username);
+        conn.send(JSON.stringify({ type: "username-available", username: msg.username, available }));
+        break;
+      }
+
+      case "register": {
+        if (this.registeredUsers.has(username)) {
+          conn.send(JSON.stringify({ type: "register-result", success: true, message: "Already registered." }));
+        } else {
+          this.registeredUsers.add(username);
+          await this._saveStorage();
+          conn.send(JSON.stringify({ type: "register-result", success: true, message: "Registered." }));
+        }
+        break;
+      }
+
       case "get-friends": {
         const myFriendList = this.friends[username] || [];
-        const friendsData = myFriendList.map((f) => ({
-          name: f,
-          ...(this.users[f] || { online: false, status: "unknown", tokensUsed: null, lastSeen: null }),
-        }));
+        const friendsData = myFriendList.map((f) => {
+          const mutual = (this.friends[f] || []).includes(username);
+          return {
+            name: f,
+            mutual,
+            ...(mutual
+              ? (this.users[f] || { online: false, status: "unknown", tokensUsed: null, lastSeen: null })
+              : { online: false, status: "pending", tokensUsed: null, lastSeen: null }),
+          };
+        });
         conn.send(JSON.stringify({ type: "friends-list", friends: friendsData }));
+        break;
+      }
+
+      case "admin-clear": {
+        this.registeredUsers = new Set();
+        this.friends = {};
+        this.users = {};
+        this.nudges = {};
+        await this._saveStorage();
+        conn.send(JSON.stringify({ type: "admin-cleared" }));
         break;
       }
 

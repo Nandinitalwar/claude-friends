@@ -1,1 +1,0 @@
-Run `claude-friends nudge $ARGUMENTS` and show the output. If no username is provided, ask for one first.
