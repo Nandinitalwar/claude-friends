@@ -6,7 +6,6 @@ import { homedir } from "os";
 import { getConfig, createConnection } from "./client.js";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import prompts from "prompts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = join(homedir(), ".claude-friends.json");
@@ -51,198 +50,16 @@ function run(messageType, payload, responseType, formatter) {
 if (command === "setup") {
   const existing = getConfig();
   if (existing) {
-    console.log(`\nAlready set up as "${existing.username}".`);
-    console.log(`Config: ${CONFIG_PATH}`);
-    console.log(`\nTo change username, delete ${CONFIG_PATH} and run again.\n`);
-    process.exit(0);
-  }
+    console.log(`Already set up as "${existing.username}".`);
+  } else {
+    console.log(`
+To set up claude-friends, open Claude Code and type:
 
-  // Helper to check username availability
-  async function checkUsername(name) {
-    return new Promise((resolve) => {
-      const ws = createConnection(name);
-      const timer = setTimeout(() => { ws.close(); resolve(true); }, 5000);
-      ws.addEventListener("open", () => {
-        ws.send(JSON.stringify({ type: "check-username", username: name }));
-      });
-      ws.addEventListener("message", (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "username-available") {
-          clearTimeout(timer);
-          ws.close();
-          resolve(msg.available);
-        }
-      });
-      ws.addEventListener("error", () => { clearTimeout(timer); resolve(true); });
-    });
-  }
+  /friends
 
-  // Helper to add a friend via server
-  async function addFriend(username, friend) {
-    return new Promise((resolve) => {
-      const ws = createConnection(username);
-      const timer = setTimeout(() => { ws.close(); resolve({ type: "error", message: "Timeout connecting to server." }); }, 5000);
-      ws.addEventListener("open", () => {
-        ws.send(JSON.stringify({ type: "add-friend", friend }));
-      });
-      ws.addEventListener("message", (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "friend-added" || msg.type === "error") {
-          clearTimeout(timer);
-          ws.close();
-          resolve(msg);
-        }
-      });
-    });
-  }
-
-  // --- Step 1: Welcome ---
-  console.log(`
-╔══════════════════════════════════════╗
-║      Welcome to claude-friends!      ║
-╚══════════════════════════════════════╝
-
-See when your friends are coding in Claude Code,
-share status updates, and nudge each other.
-
-Friendship is mutual — you can only see someone
-online if you've BOTH added each other.
+This will walk you through picking a username and adding friends.
 `);
-
-  // --- Step 2: Pick a username ---
-  let username;
-  while (true) {
-    const { value } = await prompts({
-      type: "text",
-      name: "value",
-      message: "Pick a username (this is how friends will find you)",
-    });
-
-    if (!value) { console.log("Setup cancelled."); process.exit(0); }
-
-    const available = await checkUsername(value.trim());
-    if (!available) {
-      console.log(`  "${value.trim()}" is already taken. Try another.\n`);
-      continue;
-    }
-
-    username = value.trim();
-    break;
   }
-
-  console.log(`\n  You're "${username}"!\n`);
-
-  // Save config
-  writeFileSync(CONFIG_PATH, JSON.stringify({ username }, null, 2));
-
-  // --- Step 3: Add friends ---
-  const { wantFriends } = await prompts({
-    type: "confirm",
-    name: "wantFriends",
-    message: "Want to add some friends now?",
-    initial: true,
-  });
-
-  if (wantFriends) {
-    console.log("\n  Tell your friends to add you back with: claude-friends add " + username + "\n");
-
-    let addMore = true;
-    while (addMore) {
-      const { friend } = await prompts({
-        type: "text",
-        name: "friend",
-        message: "Friend's username",
-      });
-
-      if (!friend || !friend.trim()) break;
-
-      const result = await addFriend(username, friend.trim());
-      if (result.type === "error") {
-        console.log(`  ${result.message}`);
-      } else if (result.mutual) {
-        console.log(`  You and ${friend.trim()} are now friends!`);
-      } else {
-        console.log(`  Added! They need to add you back ("${username}") to see each other online.`);
-      }
-
-      const { more } = await prompts({
-        type: "confirm",
-        name: "more",
-        message: "Add another friend?",
-        initial: false,
-      });
-      addMore = more;
-    }
-  }
-
-  // --- Step 4: Install hooks & commands silently ---
-  // Install slash commands
-  const commandsDir = join(homedir(), ".claude", "commands");
-  mkdirSync(commandsDir, { recursive: true });
-
-  const srcCommands = join(__dirname, "commands");
-  if (existsSync(srcCommands)) {
-    const files = readdirSync(srcCommands).filter((f) => f.endsWith(".md"));
-    for (const file of files) {
-      copyFileSync(join(srcCommands, file), join(commandsDir, file));
-    }
-  }
-
-  // Install hooks to settings.json
-  const settingsPath = join(homedir(), ".claude", "settings.json");
-  try {
-    let settings = {};
-    if (existsSync(settingsPath)) {
-      settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
-    }
-    if (!settings.hooks) settings.hooks = {};
-
-    // Token-sharing hook (Stop)
-    if (!settings.hooks.Stop) settings.hooks.Stop = [];
-    const hookCommand = `node ${join(__dirname, "hooks", "update-tokens.js")}`;
-    const tokenHookInstalled = settings.hooks.Stop.some((h) =>
-      h.hooks?.some((hk) => hk.command?.includes("update-tokens"))
-    );
-    if (!tokenHookInstalled) {
-      settings.hooks.Stop.push({
-        hooks: [{ type: "command", command: hookCommand, async: true }],
-      });
-    }
-
-    // Statusline
-    if (!settings.statusLine) {
-      settings.statusLine = {
-        type: "command",
-        command: `node ${join(__dirname, "statusline.js")}`,
-      };
-    }
-
-    // Presence daemon (SessionStart)
-    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
-    const daemonCmd = `node ${join(__dirname, "daemon.js")}`;
-    const daemonInstalled = settings.hooks.SessionStart.some((h) =>
-      h.hooks?.some((hk) => hk.command?.includes("daemon.js"))
-    );
-    if (!daemonInstalled) {
-      settings.hooks.SessionStart.push({
-        hooks: [{ type: "command", command: daemonCmd, async: true }],
-      });
-    }
-
-    writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-  } catch {}
-
-  // --- Step 5: Done ---
-  console.log(`
-You're all set! In Claude Code, try:
-
-  /friends            See who's online
-  /friend <name>      Add a friend
-  /nudge <name>       Nudge someone
-  /status <message>   Set your status
-
-Your friends can add you with: claude-friends add ${username}
-`);
 
 } else if (command === "check-username") {
   // Check if a username is available (for Claude Code slash commands)
