@@ -1,6 +1,6 @@
 {
   "name": "claude-friends",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "See who's online in Claude Code. Add friends, share status, nudge each other.",
   "type": "module",
   "bin": {
@@ -40,6 +40,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nandinitalwar/claude-friends.git"
+    "url": "git+https://github.com/claude-friends/claude-friends.git"
   }
 }

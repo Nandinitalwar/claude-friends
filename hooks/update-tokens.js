@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-// Hook script: reads REAL token usage from Claude Code session files
-// Only counts tokens from today. Pushes to PartyKit.
+// Hook script: shares token usage to PartyKit on session stop
+// Reads session data from stdin (provided by Claude Code Stop hook)
+// Does NOT read session JSONL files
 
-import { readFileSync, readdirSync, statSync, existsSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -17,67 +18,21 @@ try {
   process.exit(0);
 }
 
-// Today at midnight
-const todayStart = new Date();
-todayStart.setHours(0, 0, 0, 0);
-const todayISO = todayStart.toISOString();
+// Read session data from stdin
+let input = "";
+try {
+  input = readFileSync(0, "utf-8");
+} catch {}
 
-// Find all session files modified today
-function getSessionFilesModifiedToday() {
-  const projectsDir = join(homedir(), ".claude", "projects");
-  if (!existsSync(projectsDir)) return [];
+let data = {};
+try {
+  data = JSON.parse(input);
+} catch {}
 
-  const files = [];
-  try {
-    for (const dir of readdirSync(projectsDir)) {
-      const dirPath = join(projectsDir, dir);
-      try {
-        for (const file of readdirSync(dirPath)) {
-          if (!file.endsWith(".jsonl")) continue;
-          const filePath = join(dirPath, file);
-          const mtime = statSync(filePath).mtimeMs;
-          // Only files modified today
-          if (mtime >= todayStart.getTime()) {
-            files.push(filePath);
-          }
-        }
-      } catch {}
-    }
-  } catch {}
-
-  return files;
-}
-
-// Sum today's token usage from session files
-function getTodayTokens(files) {
-  let totalTokens = 0;
-
-  for (const filePath of files) {
-    try {
-      const content = readFileSync(filePath, "utf-8");
-      for (const line of content.trim().split("\n")) {
-        try {
-          const entry = JSON.parse(line);
-          const usage = entry?.message?.usage;
-          const timestamp = entry?.timestamp;
-
-          // Only count entries from today
-          if (usage && timestamp && timestamp >= todayISO) {
-            totalTokens +=
-              (usage.input_tokens || 0) +
-              (usage.cache_creation_input_tokens || 0) +
-              (usage.output_tokens || 0);
-          }
-        } catch {}
-      }
-    } catch {}
-  }
-
-  return totalTokens;
-}
-
-const files = getSessionFilesModifiedToday();
-const totalTokens = getTodayTokens(files);
+// Get total tokens from the session data
+const totalIn = data.context_window?.total_input_tokens || 0;
+const totalOut = data.context_window?.total_output_tokens || 0;
+const totalTokens = totalIn + totalOut;
 
 if (totalTokens === 0) process.exit(0);
 

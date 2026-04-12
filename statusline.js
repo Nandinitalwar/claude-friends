@@ -58,23 +58,12 @@ if (totalIn != null || totalOut != null) {
   segments.push(`${formatNum(total)} tokens`);
 }
 
-// 5. Tool calls from transcript
-if (data.transcript_path) {
-  try {
-    const transcript = readFileSync(data.transcript_path, "utf-8");
-    const toolCalls = (transcript.match(/"type"\s*:\s*"tool_use"/g) || []).length;
-    if (toolCalls > 0) {
-      segments.push(`\u{1F527} ${toolCalls}`);
-    }
-  } catch {}
-}
-
-// 6. Cost
+// 5. Cost
 if (data.cost?.total_cost_usd != null) {
   segments.push(`$${data.cost.total_cost_usd.toFixed(2)}`);
 }
 
-// 7. Streak
+// 6. Streak (based on session file dates, not contents)
 segments.push(`\u{1F525} ${getStreak()}d`);
 
 // 8. Friends online
