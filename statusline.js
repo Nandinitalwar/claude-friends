@@ -7,6 +7,20 @@ import { join, basename } from "path";
 import { homedir } from "os";
 import { execSync } from "child_process";
 
+// ANSI colors
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const GRAY = "\x1b[90m";
+const WHITE = "\x1b[97m";
+const CYAN = "\x1b[36m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const MAGENTA = "\x1b[35m";
+const BLUE = "\x1b[34m";
+
+const SEP = ` ${GRAY}|${RESET} `;
+
 // Read JSON from stdin
 let input = "";
 try {
@@ -23,7 +37,7 @@ const segments = [];
 // 1. Project name
 const projectDir = data.workspace?.project_dir || data.cwd || "";
 if (projectDir) {
-  segments.push(basename(projectDir));
+  segments.push(`${WHITE}${basename(projectDir)}${RESET}`);
 }
 
 // 2. Git branch
@@ -33,7 +47,7 @@ try {
     stdio: ["pipe", "pipe", "pipe"],
   }).toString().trim();
   if (branch) {
-    segments.push(`\u2387 ${branch}`);
+    segments.push(`${MAGENTA}\u2387 ${branch}${RESET}`);
   }
 } catch {}
 
@@ -47,7 +61,7 @@ if (data.model) {
     .replace("opus-4-6", "Opus 4.6")
     .replace("sonnet-4-6", "Sonnet 4.6")
     .replace("haiku-4-5-20251001", "Haiku 4.5");
-  segments.push(`\u{1F916} ${short}`);
+  segments.push(`${CYAN}\u{1F916} ${short}${RESET}`);
 }
 
 // 4. Tokens
@@ -55,7 +69,7 @@ const totalIn = data.context_window?.total_input_tokens;
 const totalOut = data.context_window?.total_output_tokens;
 if (totalIn != null || totalOut != null) {
   const total = (totalIn || 0) + (totalOut || 0);
-  segments.push(`${formatNum(total)} tokens`);
+  segments.push(`${BLUE}${formatNum(total)} tokens${RESET}`);
 }
 
 // 5. Tool calls (grep count only — never reads conversation content)
@@ -66,27 +80,31 @@ if (data.transcript_path) {
       { stdio: ["pipe", "pipe", "pipe"] }
     ).toString().trim();
     const n = parseInt(count, 10);
-    if (n > 0) segments.push(`\u{1F527} ${n}`);
+    if (n > 0) segments.push(`${YELLOW}\u{1F527} ${n}${RESET}`);
   } catch {}
 }
 
 // 6. Cost
 if (data.cost?.total_cost_usd != null) {
-  segments.push(`$${data.cost.total_cost_usd.toFixed(2)}`);
+  const cost = data.cost.total_cost_usd;
+  const color = cost > 10 ? YELLOW : GREEN;
+  segments.push(`${color}$${cost.toFixed(2)}${RESET}`);
 }
 
-// 6. Streak (based on session file dates, not contents)
-segments.push(`\u{1F525} ${getStreak()}d`);
+// 7. Streak
+const streak = getStreak();
+segments.push(`\u{1F525} ${streak}d`);
 
 // 8. Friends online
 const friends = getFriendsOnline();
+const onlineColor = friends.count > 0 ? GREEN : GRAY;
 const dot = friends.count > 0 ? "\u{1F7E2}" : "\u25CB";
 const names = friends.names.length > 0
   ? ` (${friends.names.slice(0, 3).join(", ")}${friends.names.length > 3 ? "\u2026" : ""})`
   : "";
-segments.push(`${dot} ${friends.count} online${names}`);
+segments.push(`${onlineColor}${dot} ${friends.count} online${names}${RESET}`);
 
-process.stdout.write(segments.join(" | "));
+process.stdout.write(segments.join(SEP));
 
 // --- Helpers ---
 
@@ -107,7 +125,6 @@ function getFriendsOnline() {
 }
 
 function getStreak() {
-  // Collect dates of all session file modifications
   const sessionsDir = join(homedir(), ".claude", "projects");
   try {
     if (!existsSync(sessionsDir)) return 0;
