@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --no-warnings
 
 import { writeFileSync, readFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from "fs";
 import { join } from "path";
