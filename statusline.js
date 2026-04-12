@@ -108,6 +108,13 @@ process.stdout.write(segments.join(SEP));
 
 // --- Helpers ---
 
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function formatNum(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -136,7 +143,7 @@ function getStreak() {
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = localDateStr(d);
       if (activeDates.has(dateStr)) {
         streak++;
       } else if (i > 0) {
@@ -159,7 +166,7 @@ function scanForDates(dir, dates, depth) {
       } else if (entry.name.endsWith(".jsonl")) {
         try {
           const mtime = statSync(full).mtime;
-          dates.add(mtime.toISOString().slice(0, 10));
+          dates.add(localDateStr(mtime));
         } catch {}
       }
     }
