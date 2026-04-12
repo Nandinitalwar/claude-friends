@@ -52,8 +52,16 @@ setInterval(() => {
   }
 }, 15000);
 
-// Keep process alive
-setInterval(() => {}, 60000);
+// Exit when parent process (Claude Code) dies
+const parentPid = process.ppid;
+setInterval(() => {
+  try {
+    process.kill(parentPid, 0); // Check if parent is alive (signal 0 = no-op)
+  } catch {
+    ws.close();
+    process.exit(0);
+  }
+}, 5000);
 
 // Clean exit
 process.on("SIGINT", () => { ws.close(); process.exit(0); });
