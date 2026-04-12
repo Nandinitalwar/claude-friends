@@ -53,9 +53,10 @@ if (command === "setup") {
     console.log(`Already set up as "${existing.username}".`);
   } else {
     console.log(`
-To set up claude-friends, open Claude Code and type:
+To set up claude-friends:
 
-  /friends
+  1. Restart Claude Code (if you just installed)
+  2. Type /friends to start the guided setup
 
 This will walk you through picking a username and adding friends.
 `);
@@ -254,7 +255,7 @@ This will walk you through picking a username and adding friends.
 
 } else if (command === "whoami") {
   const config = getConfig();
-  if (!config) { console.log("Not set up. Run: claude-friends setup"); process.exit(1); }
+  if (!config) { console.log("not-set-up"); process.exit(0); }
   console.log(config.username);
 
 } else if (command === "serve") {

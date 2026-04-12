@@ -1,16 +1,16 @@
 See who's online.
 
-First, check if claude-friends is set up by running `claude-friends whoami`. If it returns "Not set up", run the onboarding flow below BEFORE doing anything else. If it IS set up, skip to "Show friends".
+First, check if claude-friends is set up by running `claude-friends whoami`. If the output is "not-set-up", run the onboarding flow below BEFORE doing anything else. If it returns an actual username, skip to "Show friends".
 
 ## Onboarding (only if not set up)
 
 Walk the user through setup using AskUserQuestion:
 
-1. Explain: "claude-friends lets you see when your friends are coding in Claude Code. Friendship is mutual — you can only see each other online if you've BOTH added each other."
+1. Explain: "claude-friends lets you see when your friends are coding in Claude Code. Friendship is mutual — you can only see each other online if you've BOTH added each other. Let's get you set up!"
 
-2. Before asking the user to pick a username, generate 2-3 suggestions based on their system username (e.g. first name, initials, short nickname). Run `claude-friends check-username <name>` for EACH suggestion IN PARALLEL to check availability. Only include suggestions that return "available" as options in the AskUserQuestion. This way every option shown is guaranteed available. If the user types their own via "Other", run the check after — if taken, tell them immediately and re-ask.
+2. Ask the user to pick a username using AskUserQuestion. Generate 2-3 suggestions based on their system username (e.g. first name, initials, short nickname) and run `claude-friends check-username <name>` for EACH suggestion IN PARALLEL. Only include suggestions that return "available" as options. The user MUST explicitly choose one or type their own via "Other" — never auto-select for them. If they type a custom username via "Other", check availability after and re-ask if taken.
 
-3. Run `claude-friends setup-noninteractive <username>` to register the chosen username. 
+3. Run `claude-friends setup-noninteractive <username>` to register the chosen username.
 
 4. Ask "Want to add some friends?" (Yes / No). If yes, go DIRECTLY to asking for a username — do NOT show an intermediate screen. Use AskUserQuestion with two options like "Skip" and "Done adding" so the user types their friend's username via "Other". After each add:
    - Run `claude-friends add <friend>` and show the result
