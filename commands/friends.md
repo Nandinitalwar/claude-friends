@@ -1,8 +1,8 @@
 See who's online.
 
-First, check if claude-friends is set up by running `claude-friends whoami`. If the output is "not-set-up", run the onboarding flow below BEFORE doing anything else. If it returns an actual username, skip to "Show friends".
+Run `claude-friends online`. If the output is "not-set-up", run the onboarding flow below. Otherwise, show the output to the user.
 
-## Onboarding (only if not set up)
+## Onboarding
 
 Walk the user through setup using AskUserQuestion:
 
@@ -17,11 +17,9 @@ Walk the user through setup using AskUserQuestion:
    - Ask "Add another?" (Yes / No) — repeat until they say no
    - Remind them: "Tell your friends to add you back with: claude-friends add <their-username>"
 
-5. Say "You're all set!" and continue to Show friends below.
+5. Say "You're all set!" and run `claude-friends online` to show their friends list.
 
 ## Show friends
-
-Run `claude-friends online` and show the output.
 
 If any friends have token usage data, also show a bar chart comparing their usage. Use block characters (█) to draw horizontal bars, scaled relative to the highest usage. Example:
 

@@ -21,8 +21,8 @@ async function main() {
 function run(messageType, payload, responseType, formatter) {
   const config = getConfig();
   if (!config) {
-    console.log("Not set up. Run: claude-friends setup");
-    process.exit(1);
+    console.log("not-set-up");
+    process.exit(0);
   }
 
   const ws = createConnection(config.username);
@@ -237,7 +237,7 @@ This will walk you through picking a username and adding friends.
 } else if (command === "status") {
   if (!args) { console.log("Usage: claude-friends status <message>"); process.exit(1); }
   const config = getConfig();
-  if (!config) { console.log("Not set up. Run: claude-friends setup"); process.exit(1); }
+  if (!config) { console.log("not-set-up"); process.exit(0); }
   const ws = createConnection(config.username);
   ws.addEventListener("open", () => {
     ws.send(JSON.stringify({ type: "set-status", status: args }));
