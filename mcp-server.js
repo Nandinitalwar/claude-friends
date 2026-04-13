@@ -83,6 +83,13 @@ await new Promise((resolve) => {
   ws.addEventListener("open", resolve, { once: true });
 });
 
+// Send heartbeats to avoid being reaped by server
+setInterval(() => {
+  if (ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: "heartbeat" }));
+  }
+}, 10000);
+
 // --- MCP Server ---
 
 const server = new McpServer({

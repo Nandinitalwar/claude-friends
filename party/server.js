@@ -17,6 +17,27 @@ export default class FriendsServer {
     // Set of registered usernames
     this.registeredUsers = new Set();
     this._loaded = false;
+
+    // Reap stale daemon connections every 15 seconds
+    // Daemons must send heartbeats every 10s; if none in 30s, close them
+    this._reaperInterval = setInterval(() => this._reapStaleConnections(), 15000);
+  }
+
+  _reapStaleConnections() {
+    const now = Date.now();
+    const STALE_THRESHOLD = 30000; // 30 seconds without heartbeat
+    for (const conn of this.room.getConnections()) {
+      if (!conn._lastHeartbeat) continue; // skip connections without tracking (shouldn't happen)
+      const age = now - conn._lastHeartbeat;
+      if (conn._isDaemon && age > STALE_THRESHOLD) {
+        // Daemon that stopped heartbeating
+        conn.close(4001, "stale daemon");
+      } else if (!conn._isDaemon && age > 60000) {
+        // Open >60s without ever sending a heartbeat — old daemon
+        // (CLI connections are short-lived and close within seconds)
+        conn.close(4001, "no heartbeat");
+      }
+    }
   }
 
   async _loadStorage() {
@@ -43,6 +64,8 @@ export default class FriendsServer {
     }
 
     conn._username = username;
+    conn._lastHeartbeat = Date.now();
+    conn._isDaemon = false; // set true on first heartbeat
 
     // Cancel any pending offline timer
     if (this.offlineTimers[username]) {
@@ -276,6 +299,15 @@ export default class FriendsServer {
         this.nudges = {};
         await this._saveStorage();
         conn.send(JSON.stringify({ type: "admin-cleared" }));
+        break;
+      }
+
+      case "heartbeat": {
+        conn._lastHeartbeat = Date.now();
+        conn._isDaemon = true;
+        if (this.users[username]) {
+          this.users[username].lastSeen = Date.now();
+        }
         break;
       }
 

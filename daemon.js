@@ -45,6 +45,13 @@ ws.addEventListener("message", (event) => {
   } catch {}
 });
 
+// Send heartbeat every 10 seconds (server kills connections without heartbeat)
+setInterval(() => {
+  if (ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: "heartbeat" }));
+  }
+}, 10000);
+
 // Poll friends every 15 seconds
 setInterval(() => {
   if (ws.readyState === 1) {

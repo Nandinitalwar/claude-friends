@@ -84,11 +84,15 @@ if (data.transcript_path) {
   } catch {}
 }
 
-// 6. Cost
-if (data.cost?.total_cost_usd != null) {
-  const cost = data.cost.total_cost_usd;
-  const color = cost > 10 ? YELLOW : GREEN;
-  segments.push(`${color}$${cost.toFixed(2)}${RESET}`);
+// 6. Usage remaining (bar)
+const fiveHr = data.rate_limits?.five_hour;
+if (fiveHr?.used_percentage != null) {
+  const remaining = Math.max(0, 100 - fiveHr.used_percentage);
+  const BAR_WIDTH = 8;
+  const filled = Math.round((remaining / 100) * BAR_WIDTH);
+  const bar = "█".repeat(filled) + "░".repeat(BAR_WIDTH - filled);
+  const color = remaining < 5 ? "\x1b[31m" : remaining < 20 ? YELLOW : GREEN;
+  segments.push(`${color}[${bar}] ${remaining.toFixed(0)}%${RESET}`);
 }
 
 // 7. Streak
