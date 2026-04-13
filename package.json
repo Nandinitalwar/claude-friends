@@ -1,6 +1,6 @@
 {
   "name": "claude-friends",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "description": "See who's online in Claude Code. Add friends, share status, nudge each other.",
   "type": "module",
   "bin": {
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "npx partykit dev",
     "deploy": "npx partykit deploy",
-    "postinstall": "node -e \"const{cpSync,mkdirSync}=require('fs'),{join}=require('path'),d=join(require('os').homedir(),'.claude','commands');mkdirSync(d,{recursive:true});try{cpSync(join(__dirname,'commands'),d,{recursive:true})}catch{}\""
+    "postinstall": "node -e \"const{cpSync,mkdirSync,unlinkSync}=require('fs'),{join}=require('path'),d=join(require('os').homedir(),'.claude','commands');mkdirSync(d,{recursive:true});try{unlinkSync(join(d,'friend.md'))}catch{};try{unlinkSync(join(d,'friends.md'))}catch{};try{cpSync(join(__dirname,'commands'),d,{recursive:true})}catch{}\""
   },
   "files": [
     "cli.js",
