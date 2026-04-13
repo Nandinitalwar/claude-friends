@@ -84,15 +84,18 @@ if (data.transcript_path) {
   } catch {}
 }
 
-// 6. Usage remaining (bar)
+// 6. Usage remaining (bar) — rate limits if available, else context window
 const fiveHr = data.rate_limits?.five_hour;
-if (fiveHr?.used_percentage != null) {
-  const remaining = Math.max(0, 100 - fiveHr.used_percentage);
+const ctxUsed = data.context_window?.used_percentage;
+const usedPct = fiveHr?.used_percentage ?? ctxUsed;
+{
+  const remaining = usedPct != null ? Math.max(0, 100 - usedPct) : 100;
+  const label = fiveHr?.used_percentage != null ? "" : "ctx ";
   const BAR_WIDTH = 8;
   const filled = Math.round((remaining / 100) * BAR_WIDTH);
   const bar = "█".repeat(filled) + "░".repeat(BAR_WIDTH - filled);
   const color = remaining < 5 ? "\x1b[31m" : remaining < 20 ? YELLOW : GREEN;
-  segments.push(`${color}[${bar}] ${remaining.toFixed(0)}%${RESET}`);
+  segments.push(`${color}[${bar}] ${label}${remaining.toFixed(0)}%${RESET}`);
 }
 
 // 7. Streak
@@ -128,7 +131,7 @@ function formatNum(n) {
 function getFriendsOnline() {
   try {
     const cache = JSON.parse(readFileSync(join(homedir(), ".claude-friends-online.json"), "utf-8"));
-    if (Date.now() - cache.timestamp > 30000) return { count: 0, names: [] };
+    if (!cache.lastUpdate || Date.now() - cache.lastUpdate > 30000) return { count: 0, names: [] };
     return { count: cache.onlineCount || 0, names: cache.onlineNames || [] };
   } catch {
     return { count: 0, names: [] };
