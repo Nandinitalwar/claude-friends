@@ -320,20 +320,30 @@ export default class FriendsServer {
     }
   }
 
+  _safeSend(conn, payload) {
+    try {
+      conn.send(payload);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   sendToUser(username, data) {
+    const payload = JSON.stringify(data);
+    let delivered = false;
     for (const conn of this.room.getConnections()) {
-      if (conn._username === username) {
-        conn.send(JSON.stringify(data));
-        return true;
+      if (conn._username === username && this._safeSend(conn, payload)) {
+        delivered = true;
       }
     }
-    return false;
+    return delivered;
   }
 
   broadcast(data) {
     const msg = JSON.stringify(data);
     for (const conn of this.room.getConnections()) {
-      conn.send(msg);
+      this._safeSend(conn, msg);
     }
   }
 }
