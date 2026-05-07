@@ -20,11 +20,8 @@ That's it. No database, no API keys, no MCP server to configure.
 ### Slash commands (inside Claude Code)
 
 ```
-/friend alice       Add a friend
-/friends            See who's online
-/nudge bob hey!     Nudge someone
-/status debugging   Set your status
-/unfriend alice     Remove a friend
+/setup-claude-friends    Set up & see who's online
+/add-friend alice        Add a friend
 ```
 
 ### CLI (from any terminal)
