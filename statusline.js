@@ -40,7 +40,13 @@ if (projectDir) {
   segments.push(`${WHITE}${basename(projectDir)}${RESET}`);
 }
 
-// 2. Git branch
+// 2. Friends online (early so it survives narrow-pane truncation)
+const friends = getFriendsOnline();
+const onlineColor = friends.count > 0 ? GREEN : GRAY;
+const dot = friends.count > 0 ? "\u{1F7E2}" : "○";
+segments.push(`${onlineColor}${dot} ${friends.count} online${RESET}`);
+
+// 3. Git branch
 try {
   const branch = execSync("git rev-parse --abbrev-ref HEAD", {
     cwd: projectDir || undefined,
@@ -51,37 +57,12 @@ try {
   }
 } catch {}
 
-// 3. Model
-if (data.model) {
-  const modelName = typeof data.model === "object"
-    ? (data.model.display_name || data.model.id || "")
-    : data.model;
-  const short = modelName
-    .replace(/^claude-/, "")
-    .replace("opus-4-6", "Opus 4.6")
-    .replace("sonnet-4-6", "Sonnet 4.6")
-    .replace("haiku-4-5-20251001", "Haiku 4.5");
-  segments.push(`${CYAN}\u{1F916} ${short}${RESET}`);
-}
-
 // 4. Tokens
 const totalIn = data.context_window?.total_input_tokens;
 const totalOut = data.context_window?.total_output_tokens;
 if (totalIn != null || totalOut != null) {
   const total = (totalIn || 0) + (totalOut || 0);
   segments.push(`${BLUE}${formatNum(total)} tokens${RESET}`);
-}
-
-// 5. Tool calls (grep count only — never reads conversation content)
-if (data.transcript_path) {
-  try {
-    const count = execSync(
-      `grep -c 'tool_use' "${data.transcript_path}" 2>/dev/null || echo 0`,
-      { stdio: ["pipe", "pipe", "pipe"] }
-    ).toString().trim();
-    const n = parseInt(count, 10);
-    if (n > 0) segments.push(`${YELLOW}\u{1F527} ${n}${RESET}`);
-  } catch {}
 }
 
 // 6. Usage remaining (bar) — rate limits if available, else context window
@@ -101,15 +82,6 @@ const usedPct = fiveHr?.used_percentage ?? ctxUsed;
 // 7. Streak
 const streak = getStreak();
 segments.push(`\u{1F525} ${streak}d`);
-
-// 8. Friends online
-const friends = getFriendsOnline();
-const onlineColor = friends.count > 0 ? GREEN : GRAY;
-const dot = friends.count > 0 ? "\u{1F7E2}" : "\u25CB";
-const names = friends.names.length > 0
-  ? ` (${friends.names.slice(0, 3).join(", ")}${friends.names.length > 3 ? "\u2026" : ""})`
-  : "";
-segments.push(`${onlineColor}${dot} ${friends.count} online${names}${RESET}`);
 
 process.stdout.write(segments.join(SEP));
 
