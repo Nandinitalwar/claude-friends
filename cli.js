@@ -1,6 +1,6 @@
 #!/usr/bin/env -S node --no-warnings
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync, copyFileSync, readdirSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, copyFileSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { getConfig, createConnection } from "./client.js";
@@ -94,30 +94,7 @@ This will walk you through picking a username and adding friends.
     process.exit(0);
   }
 
-  // Check username availability
-  const available = await new Promise((resolve) => {
-    const ws = createConnection(username);
-    const timer = setTimeout(() => { ws.close(); resolve(true); }, 5000);
-    ws.addEventListener("open", () => {
-      ws.send(JSON.stringify({ type: "check-username", username }));
-    });
-    ws.addEventListener("message", (event) => {
-      const msg = JSON.parse(event.data);
-      if (msg.type === "username-available") {
-        clearTimeout(timer);
-        ws.close();
-        resolve(msg.available);
-      }
-    });
-    ws.addEventListener("error", () => { clearTimeout(timer); resolve(true); });
-  });
-
-  if (!available) {
-    console.log(`Username "${username}" is already taken.`);
-    process.exit(1);
-  }
-
-  // Register on server
+  // Register on server (allows re-registration for reinstalls)
   await new Promise((resolve) => {
     const ws = createConnection(username);
     const timer = setTimeout(() => { ws.close(); resolve(); }, 5000);
@@ -146,6 +123,12 @@ This will walk you through picking a username and adding friends.
       copyFileSync(join(srcCommands, file), join(commandsDir, file));
     }
   }
+
+  // Remove setup command (one-time only) and old add-friend.md
+  const setupCmd = join(commandsDir, "setup-claude-friends.md");
+  const oldAddFriend = join(commandsDir, "add-friend.md");
+  try { if (existsSync(setupCmd)) unlinkSync(setupCmd); } catch {}
+  try { if (existsSync(oldAddFriend)) unlinkSync(oldAddFriend); } catch {}
 
   // Install hooks
   const settingsPath = join(homedir(), ".claude", "settings.json");
@@ -258,6 +241,40 @@ This will walk you through picking a username and adding friends.
   if (!config) { console.log("not-set-up"); process.exit(0); }
   console.log(config.username);
 
+} else if (command === "uninstall") {
+  const home = homedir();
+  const filesToRemove = [
+    join(home, ".claude-friends.json"),
+    join(home, ".claude-friends-online.json"),
+    join(home, ".claude-friends-tokens.json"),
+    join(home, ".claude", "commands", "setup-claude-friends.md"),
+    join(home, ".claude", "commands", "add-claude-friend.md"),
+    join(home, ".claude", "commands", "add-friend.md"),
+  ];
+  for (const f of filesToRemove) {
+    try { if (existsSync(f)) { unlinkSync(f); } } catch {}
+  }
+
+  const settingsPath = join(home, ".claude", "settings.json");
+  try {
+    if (existsSync(settingsPath)) {
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      if (settings.hooks?.Stop) {
+        settings.hooks.Stop = settings.hooks.Stop.filter((h) => !h.hooks?.some((hk) => hk.command?.includes("claude-friends")));
+        if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
+      }
+      if (settings.hooks?.SessionStart) {
+        settings.hooks.SessionStart = settings.hooks.SessionStart.filter((h) => !h.hooks?.some((hk) => hk.command?.includes("claude-friends")));
+        if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
+      }
+      if (settings.hooks && Object.keys(settings.hooks).length === 0) delete settings.hooks;
+      if (settings.statusLine?.command?.includes("claude-friends")) delete settings.statusLine;
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    }
+  } catch {}
+
+  console.log("Uninstalled. Run `npm uninstall -g claude-friends` to remove the CLI.");
+
 } else if (command === "serve") {
   // Keep for backwards compat with anyone who set up MCP
   await import("./mcp-server.js");
@@ -267,22 +284,21 @@ This will walk you through picking a username and adding friends.
 claude-friends — social presence for Claude Code
 
 Commands:
-  setup               Pick a username (one-time)
   add <username>      Add a friend
   remove <username>   Remove a friend
   online              See who's online
   status <message>    Set your status
   nudge <user> [msg]  Nudge a friend
   whoami              Show your username
+  uninstall           Remove all config, hooks, and commands
 
 Quick start:
-  claude-friends setup
-  claude-friends add alice
+  npm install -g claude-friends
+  Then type /setup-claude-friends in Claude Code
 
 In Claude Code:
-  /friend alice
-  /friends
-  /nudge bob hey!
+  /setup-claude-friends        One-time setup
+  /add-claude-friend alice     Add a friend
 `);
 }
 

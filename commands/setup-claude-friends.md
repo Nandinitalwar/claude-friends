@@ -1,6 +1,8 @@
-See who's online.
+Set up claude-friends — pick a username and add friends.
 
-Run `claude-friends online`. If the output is "not-set-up", run the onboarding flow below. Otherwise, show the output to the user.
+Run `claude-friends whoami`. If the output is NOT "not-set-up", say "You're already set up! Use `claude-friends online` in your terminal to see who's online." and stop.
+
+If the output is "not-set-up", run the onboarding flow below.
 
 ## Onboarding
 
@@ -18,13 +20,3 @@ Walk the user through setup using AskUserQuestion:
    - Remind them: "Tell your friends to add you back with: claude-friends add <their-username>"
 
 5. Say "You're all set!" and run `claude-friends online` to show their friends list.
-
-## Show friends
-
-If any friends have token usage data, also show a bar chart comparing their usage. Use block characters (█) to draw horizontal bars, scaled relative to the highest usage. Example:
-
-```
-tej   ██████████████████ 245.3K
-alice ████████ 102.1K
-bob   ███ 38.5K
-```
